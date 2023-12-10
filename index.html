@@ -174,7 +174,8 @@
                 });
 
                 // Create restart button
-                restartButton = this.add.image(950, 20, 'restartButton').setInteractive();
+                restartButton = this.add.image(850, 120, 'restartButton').setInteractive();
+                restartButton.setScale(0.3);
                 restartButton.on('pointerdown', function () {
                     restartLevel();
                 });
