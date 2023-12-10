@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phaser Level Example</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+    <style>
+        body {
+            background-color: #f0f0f0;
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        h1,
+        p {
+            color: #e74c3c;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Santa's Search</h1>
+    <p>Description...</p>
+    <div style="margin-left: 300px">
+        <script>
+            var config = {
+                type: Phaser.AUTO,
+                width: 1000,
+                height: 553,
+                physics: {
+                    default: 'arcade',
+                    arcade: {
+                        gravity: {
+                            y: 300
+                        },
+                        debug: false
+                    }
+                },
+                scene: {
+                    preload: preload,
+                    create: create,
+                    update: update
+                }
+            };
+
+            var game = new Phaser.Game(config);
+            var platforms;
+            var player;
+            var cursors;
+            var gifts;
+            var collectedGifts = 0; // Counter for collected gifts
+            var collectedGiftsText;
+            var currentLevel = 1;
+            var restartButton;
+
+            function preload() {
+                this.load.image('sky', 'assets/sky.png');
+                this.load.image('ground', 'assets/snow.png');
+                this.load.spritesheet('dude', 'assets/santa.png', {
+                    frameWidth: 64,
+                    frameHeight: 96
+                });
+                this.load.image('gift', 'assets/giftscoll.png');
+                this.load.image('backSet', 'assets/back-screen.png');
+                this.load.image('restartButton', 'assets/restart_button.png');
+            }
+
+            var openingScene = {
+                preload: function () {
+                    this.load.image('logo', 'assets/back-screen.png');
+                },
+                create: function () {
+                    this.add.image(400, 300, 'sky');
+                    this.add.image(400, 200, 'logo').setOrigin(0.5, 0.5);
+
+                    // Add a start message
+                    this.add.text(500, 400, 'Press SPACE to start', {
+                        fontSize: '48px',
+                        fill: '#330000'
+                    }).setOrigin(0.5);
+
+                    // Set up keyboard input to start the game
+                    this.input.keyboard.on('keydown-SPACE', function () {
+                        this.scene.start('main');
+                    }, this);
+                }
+            };
+
+            function create() {
+                this.scene.add('opening', openingScene, true);
+                this.physics.world.setBounds(0, 0, 800, 600);
+                this.add.image(450, 250, 'backSet');
+
+                // Add platforms
+                platforms = this.physics.add.staticGroup();
+
+                generatePlatforms(currentLevel); // Generate platforms based on the current level
+
+                // Create gifts group
+                gifts = this.physics.add.group({
+                    key: 'gift',
+                    repeat: 2, // Reduced to 3 gifts
+                    setXY: {
+                        x: 100,
+                        y: 0,
+                        stepX: 300
+                    }
+                });
+
+                // Collider between platforms and gifts
+                this.physics.add.collider(platforms, gifts);
+
+                gifts.children.iterate(function (child) {
+                    child.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
+                    child.setScale(0.1); // Scaled to 0.1
+                });
+
+                // Add player
+                player = this.physics.add.sprite(100, 350, 'dude');
+
+                // Adjust the size of the player's hitbox relative to the platform scale
+                player.setSize(64 * player.scaleX, 96 * player.scaleY);
+
+                this.physics.add.collider(player, platforms);
+
+                // Add overlap event for gifts
+                this.physics.add.overlap(player, gifts, collectGift, null, this);
+
+                cursors = this.input.keyboard.createCursorKeys();
+
+                // Create player animations
+                this.anims.create({
+                    key: 'left',
+                    frames: this.anims.generateFrameNumbers('dude', {
+                        start: 0,
+                        end: 3
+                    }),
+                    frameRate: 10,
+                    repeat: -1
+                });
+
+                this.anims.create({
+                    key: 'turn',
+                    frames: [{
+                        key: 'dude',
+                        frame: 4
+                    }],
+                    frameRate: 20
+                });
+
+                this.anims.create({
+                    key: 'right',
+                    frames: this.anims.generateFrameNumbers('dude', {
+                        start: 5,
+                        end: 8
+                    }),
+                    frameRate: 10,
+                    repeat: -1
+                });
+
+                // Display collected gifts counter text
+                collectedGiftsText = this.add.text(16, 16, 'Collected Gifts: 0', {
+                    fontSize: '32px',
+                    fill: '#000'
+                });
+
+                // Create restart button
+                restartButton = this.add.image(950, 20, 'restartButton').setInteractive();
+                restartButton.on('pointerdown', function () {
+                    restartLevel();
+                });
+            }
+
+            function update() {
+                if (cursors.left.isDown) {
+                    player.setVelocityX(-160);
+                    player.anims.play('left', true);
+                } else if (cursors.right.isDown) {
+                    player.setVelocityX(160);
+                    player.anims.play('right', true);
+                } else {
+                    player.setVelocityX(0);
+                    player.anims.play('turn');
+                }
+
+                if (cursors.up.isDown && player.body.touching.down) {
+                    player.setVelocityY(-330);
+                }
+            }
+
+            function collectGift(player, gift) {
+                gift.disableBody(true, true);
+                collectedGifts++; // Increment the collected gifts counter
+                collectedGiftsText.setText('Collected Gifts: ' + collectedGifts); // Update the counter text
+
+                if (collectedGifts === 3) {
+                    // Transition to the next level
+                    currentLevel++;
+                    collectedGifts = 0; // Reset the collected gifts counter
+                    collectedGiftsText.setText('Collected Gifts: ' + collectedGifts); // Update the counter text
+                    restartLevel();
+                }
+
+                // Additional logic when a gift is collected
+            }
+
+            function generatePlatforms(level) {
+                // Ensure there's always a platform at the bottom
+                platforms.create(400, 568, 'ground').setScale(2).refreshBody();
+
+                // Generate random platforms based on the current level
+                for (var i = 0; i < 5 * level; i++) {
+                    var x = Phaser.Math.Between(50, 750);
+                    var y = Phaser.Math.Between(100, 500);
+                    var scale = 1 - level * 0.1; // Decrease platform size with each level
+
+                    // Ensure a specific distance from the platforms
+                    if (i > 0) {
+                        var prevPlatform = platforms.getChildren()[platforms.getChildren().length - 1];
+                        var distance = Phaser.Math.Distance.Between(x, y, prevPlatform.x, prevPlatform.y);
+                        while (distance < 150) {
+                            x = Phaser.Math.Between(50, 750);
+                            y = Phaser.Math.Between(100, 500);
+                            distance = Phaser.Math.Distance.Between(x, y, prevPlatform.x, prevPlatform.y);
+                        }
+                    }
+
+                    var platform = platforms.create(x, y, 'ground').setScale(scale);
+
+                    // Adjust the size of the platform's hitbox
+                    platform.setSize(64 * scale, 32 * scale).setOffset(0, 32 * (1 - scale));
+                }
+            }
+
+            function resetGifts() {
+                // Enable all existing gifts
+                gifts.children.iterate(function (child) {
+                    child.enableBody(true, child.x, child.y, true, true);
+                });
+            }
+
+            function restartLevel() {
+                // Reset the collected gifts counter and update the counter text
+                collectedGifts = 0;
+                collectedGiftsText.setText('Collected Gifts: ' + collectedGifts);
+
+                // Remove all existing platforms
+                platforms.clear(true, true);
+
+                // Generate new platforms for the current level
+                generatePlatforms(currentLevel);
+
+                // Reset the player position
+                player.setX(100);
+                player.setY(350);
+
+                // Reset the gifts
+                resetGifts();
+            }
+        </script>
+    </div>
+</body>
+
+</html>
